@@ -1,0 +1,494 @@
+<?php
+
+
+/**
+ * Defaults
+ *  @todo Move this to an admin form and store as a variables.
+ *
+ */
+define('PHANTOM_DEFAULT_HEIGHT', 720);
+define('PHANTOM_DEFAULT_WIDTH', 1280);
+
+
+/**
+ * Implements hook_menu().
+ */
+function phantom_menu() {
+  $items = array();
+  $items['phantom'] = array(
+    'title' => 'Phantom',
+    'description' => 'Phantom',
+    'page callback' => 'phantom_phantom_web',
+    'access arguments' => array('access phantom'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['phantom-frame'] = array(
+    'title' => 'Phantom iFrame',
+    'description' => 'Phantom iFrame',
+    'page callback' => 'phantom_iframe',
+    'access callback' => TRUE,
+    'delivery callback' => 'phantom_deliver_html_page',
+    'type' => MENU_CALLBACK,
+  );
+  $items['phantom-test'] = array(
+    'title' => 'Phantom Test',
+    'description' => 'Phantom Test',
+    'page callback' => 'phantom_test_web',
+    'access arguments' => array('access phantom'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['phantom-speed'] = array(
+    'title' => 'Phantom Speed Test',
+    'description' => 'Phantom Speed Test',
+    'page callback' => 'phantom_speed_web',
+    'access arguments' => array('access phantom'),
+    'type' => MENU_CALLBACK,
+  );
+  return $items;	
+}
+
+
+/**
+ * Implements hook_block_info().
+ */
+function phantom_block_info() {
+	$blocks['phantom'] = array('info' => t('Phantom'));
+	return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function phantom_block_view($delta = '') {
+	switch ($delta) {
+		case 'phantom':
+			$links = array();
+			foreach (phantom_modes() AS $mode) {
+				$links[] = l('Snapshot ' . $mode, 'phantom/' . $mode . '/' . current_path());
+			}
+			$links[] = l('Speed test','phantom-speed/' . current_path());
+			$list = array(
+				'items' => $links,
+				'title' => 'Phantom'
+			);
+			$block['content'] = theme('item_list',$list);
+			break;
+	}
+	return $block;
+}
+
+
+/**
+ * Implements hook_init().
+ */
+function phantom_init() {
+	// Check for the presence of the PhantomJS binary and present a warning message
+	// if it can't be located.
+	if (!phantom_get_binary()) {
+		$message = "The Phantom module cannot locate the PhantomJS binary in ";
+		$message .= drupal_get_path('module', 'phantom') . "/bin.  Please download a ";
+		$message .= "suitable binary from " . l('here.','http://phantomjs.org/download.html');
+		drupal_set_message($message,'warning');
+	}
+}
+
+
+/**
+ *  Search for the PhantomJS binary and return an absolute path to it.
+ *    @todo use the Drupal libraries API
+ *
+ */
+function phantom_get_binary() {
+	$results = file_scan_directory(drupal_get_path('module', 'phantom'), '/phantomjs/');
+	foreach ($results AS $file) {
+		if ($file->filename == 'phantomjs') {
+			return realpath($file->uri);
+		}
+	}
+	return FALSE;
+}
+
+
+/**
+ *  Return an absolute path to the javascript file we pass to PhantomJS.
+ */
+function phantom_get_script($script = 'capture') {
+	return realpath(drupal_get_path('module', 'phantom') . '/js/' . $script . '.js');
+}
+
+
+/**
+ *  Generate a page with an iFrame which contains a page on the site
+ *
+ * @param $height
+ *   Integer to specify the iFrame height in pixels
+ * @param $width
+ *   Integer to specify the iFrame width in pixels
+ * @param $url
+ *   URL for a page on the site.
+ *
+ * @return
+ *   HTML page containing an iFrame as specified by the input parameters
+ */
+function phantom_iframe($height, $width, $url) {
+	$args = func_get_args();
+	$url = array($url);
+	for ($i = 3; $i < count($args); $i++) {
+		$url[] = $args[$i];
+	}
+	$url = implode('/', $url);
+	$item = menu_get_item($url);
+	$url = url($url, array('absolute' => TRUE));
+	$frame = '<html><head><title>' . $item['title'] . '</title><style type="text/css">
+#frame { position: absolute; left: 0px; top: 0px; }</style></head>
+<body><iframe scrolling="no" frameborder="0" id="frame" src="' . $url . '" width="' .  $width . '" height="'. $height . '"></iframe></body></html>';
+	return $frame;
+}
+
+
+
+/**
+ * Delivery callback for phantom-frame; strips all but the html returned from the function.
+ */
+function phantom_deliver_html_page($page_callback_result) {
+	drupal_add_http_header('Content-Type', 'text/html; charset=utf-8');
+  global $language;
+  drupal_add_http_header('Content-Language', $language->language);
+	print $page_callback_result;
+  drupal_page_footer();
+}
+
+
+
+/**
+ *  Generate the absolute URL to the Phantom iFrame
+ */
+function phantom_get_frame($height, $width, $url) {
+	$path = array('phantom-frame', $height, $width, $url);
+	return url(implode('/',$path), array('absolute' => TRUE));
+}
+
+
+/**
+ * Implements hook_perm().
+ */
+function phantom_permission() {
+ return array(
+    'administer phantom' => array(
+      'title' => t('Administer Phantom'),
+      'description' => t('Set default parameters for Phantom'),
+    ),
+    'access phantom' => array(
+      'title' => t('Access Phantom'),
+      'description' => t('Access Phantom functionality'),
+    ),
+  );	
+}
+
+
+/**
+ * Returns valid PhantomJS rendering output formats.
+ */
+function phantom_modes() {
+	return array(
+		'pdf',
+		'jpg',
+		'png'
+	);
+}
+
+
+/**
+ * Page callback wrapper for phantom_test which correctly handles arguments.
+ */
+function phantom_test_web() {
+	$args = func_get_args();
+	$test = array_pop($args);
+	$type = array_pop($args);
+	return phantom_test(current_path(), $test, $type);
+}
+
+
+
+/**
+ *  Prepare to invoke the PhantomJS binary in conjunction with a javascript and a site URL
+ *
+ * @param $path
+ *   String valid path to a page on the site
+ * @param $test
+ *   String DOM element
+ * @param $type
+ *   String element type:  class or ID
+ * @param $debug
+ *   Boolean indicating whether to log shell command and output to the watchdog log.
+ *
+ * @return
+ *   The .text() and .value() of everything on $path that matches the specified selector
+ *   
+ * @todo 
+ *   Theme the return values more appropriately for web-based requests.
+ *   
+ *   
+ */
+function phantom_test($path = '', $test = '', $type = '', $debug = FALSE) {
+	// Determine if the function is called from within drush or not.
+	$drush = phantom_drush();
+
+	$path = (strlen($path) > 0) ? $path : current_path();
+	$path = explode('/',$path);
+
+	if (!$drush) {
+
+		// Remove phantom
+		if ($path[0] == 'phantom-test') {
+			unset($path[0]);
+		}
+		// Remove test parameters
+		array_pop($path);
+		array_pop($path);
+  }
+
+
+	$types = array(
+		'id' => '\\#',
+		'class' => '.',
+		'element' => '',
+	);
+	if ($type) {
+		$test = $types[$type] . $test;
+	}
+
+	// Now that 'phantom-test' and $mode have been removed from $path, re-assemble it as a string
+	$capture_path = url(implode('/', $path), array('absolute' => TRUE));
+
+	$jqueryurl = url(drupal_get_path('module', 'phantom') . '/js/jquery.min.js', array('absolute' => TRUE));
+
+	// Build and execute the shell command	
+	$command = array(phantom_get_binary(), phantom_get_script('test'), $capture_path, $test, $jqueryurl);
+	$command = implode(' ', $command);
+
+
+	$output = phantom_exec($command, $debug, $drush);
+
+
+  if ($drush) {
+		return $output;
+	} else {	
+		$content = "<h3>URL:</h3>" . $output[0];
+		$content .= "<h3>Element(s):</h3>" . $output[1];
+		$content .= "<h3>Value(s):</h3>";
+		for ($i = 2; $i < count($output); $i++) {
+			if (strlen(trim($output[$i]))) {
+				$content .= trim($output[$i]) . '<BR>';
+			}
+		}
+		return $content;	
+	}	
+
+}
+
+/**
+ * Determine if the function is called from within drush or not.
+ *  @todo do this in a non-hackish way.
+ *
+ */
+function phantom_drush() {
+	$trace = debug_backtrace();
+	$drush = array_pop($trace);
+	return strpos($drush['file'],'drush');
+}
+
+
+
+/**
+ * Page callback wrapper for phantom_phantom which correctly handles arguments.
+ */
+function phantom_phantom_web() {
+	$height = (isset($_GET['height'])) ? $_GET['height'] : PHANTOM_DEFAULT_HEIGHT;
+	$width = (isset($_GET['width'])) ? $_GET['width'] : PHANTOM_DEFAULT_WIDTH;
+	return phantom_phantom(current_path(), NULL, $height, $width);
+}
+
+
+/**
+ *  Prepare to invoke the PhantomJS binary in conjunction with a javascript and a site URL
+ *
+ * @param $path
+ *   String valid path to a page on the site
+ * @param $mode
+ *   String output format for in which $path will be rendered.  It must be a valid mode 
+ *   from phantom_modes()
+ * @param $height
+ *   Integer to specify the rendered height in pixels
+ * @param $width
+ *   Integer to specify the rendered width in pixels
+ * @param $debug
+ *   Boolean indicating whether to log shell command and output to the watchdog log.
+ *
+ * @return
+ *   If invoked from a valid site path (i.e. phantom/%/%/%/%), a call to drupal_goto to 
+ *   serve the file which renders the page passed in via $path
+ */
+function phantom_phantom($path = '', $mode = 'pdf', $height = PHANTOM_DEFAULT_HEIGHT, $width = PHANTOM_DEFAULT_WIDTH, $debug = FALSE) {
+
+	if (isset($_GET['debug'])) {
+		$debug = TRUE;
+	}
+
+	$height = ($height) ? $height : PHANTOM_DEFAULT_HEIGHT;
+	$width = ($width) ? $width : PHANTOM_DEFAULT_WIDTH;
+
+	// Determine if the function is called from within drush or not.
+	$drush = phantom_drush();
+
+	// Validate the $path parameter.
+	$path = (strlen($path) > 0) ? $path : current_path();
+	$path = explode('/',$path);
+
+	// Remove phantom
+	if ($path[0] == 'phantom') {
+		unset($path[0]);
+	}
+
+	if (array_search($path[1], phantom_modes()) !== FALSE) {
+		// If a valid mode was specified in $path, use it and remove it from $path.
+		$mode = $path[1];
+		unset($path[1]);
+	}	elseif (array_search($mode, phantom_modes()) === FALSE) {
+		// otherwise, use $mode, or if unspecified, use 'pdf'.
+		$mode = 'pdf';
+	}
+
+	// Now that 'phantom' and $mode have been removed from $path, re-assemble it as a string
+	$capture_path = implode('/', $path);
+
+	// Generate output location information
+	$output_file_base = 'public://';
+	$phantom_file_dir = 'phantom/' . $mode;
+	$output_file_dir = $output_file_base . $phantom_file_dir;
+
+	// Each path will have a specific output filename.
+	$output_filename =  str_replace('/','_', $capture_path);
+	$output_filename .= '_' . $height . 'x' . $width . "_" . time() . '.' . $mode;
+  $output_file_path = $output_file_dir . '/' . $output_filename;
+
+	// Clear out previous existing versions of the output file if they exist.  
+	// This migh be converted into a configuration option
+	file_unmanaged_delete($output_file_path);
+  $dest = drupal_realpath('public://').'/'.$phantom_file_dir.'/'.$output_filename;
+	
+	
+	
+	// Build and execute the shell command	
+	$command = array(
+		phantom_get_binary(), 
+		phantom_get_script(), 
+		phantom_get_frame($height, $width, $capture_path), 
+		$dest, 
+		$height, 
+		$width
+	);
+	$command = implode(' ', $command);
+	phantom_exec($command, $debug, $drush);
+
+	// Determine if the function is called from within drush or not.
+	if ($drush) {
+		// Called from drush, print the URL to the file
+		return file_create_url($output_file_path) . chr(10);
+	} else {
+		// Called from the web, serve the file
+		drupal_goto(file_create_url($output_file_path));
+	}
+
+}
+
+
+/**
+ * Page callback wrapper for phantom_speed which correctly handles arguments.
+ */
+function phantom_speed_web() {
+	return phantom_speed(current_path());
+}
+
+
+/**
+ *  Prepare to invoke the PhantomJS binary in conjunction with a javascript and a site URL
+ *
+ * @param $path
+ *   String valid path to a page on the site
+ * @param $debug
+ *   Boolean indicating whether to log shell command and output to the watchdog log.
+ *
+ * @return
+ *   Page load time for the specified path.
+ */
+function phantom_speed($path = '', $debug = FALSE) {
+
+	if (isset($_GET['debug'])) {
+		$debug = TRUE;
+	}
+
+	// Determine if the function is called from within drush or not.
+	$drush = phantom_drush();
+
+	// Validate the $path parameter.
+	$path = (strlen($path) > 0) ? $path : current_path();
+	$path = explode('/',$path);
+
+	// Remove phantom-speed
+	if ($path[0] == 'phantom-speed') {
+		unset($path[0]);
+	}
+
+	// Now that 'phantom-test' and $mode have been removed from $path, re-assemble it as a string
+	$capture_path = url(implode('/', $path), array('absolute' => TRUE));
+
+	// Build and execute the shell command	
+	$command = array(
+		phantom_get_binary(), 
+		phantom_get_script('loadspeed'), 
+		$capture_path, 
+	);
+	$command = implode(' ', $command);
+	
+	$output = phantom_exec($command, $debug, $drush);
+
+  if ($drush) {
+		return $output[1];
+	} else {	
+		return $output[1];	
+	}	
+}
+
+
+
+
+
+
+
+
+/**
+ *  Invoke the PhantomJS binary, manage output and debugging.
+ *
+ */
+function phantom_exec($command, $debug = FALSE, $drush = FALSE) {
+	$debug = true;
+  if ($debug) {
+		if (!$drush) {
+			watchdog('phantom', 'Command: ' . $command);
+		}
+	}
+  exec($command, $output, $status);
+
+  if ($debug) {
+		if ($drush) {
+			return $output;
+		} else {
+			watchdog('phantom', 'Output: ' . implode('<BR>', $output));
+			watchdog('phantom', 'Status: ' . $status);
+		}
+	}
+	return $output;
+}
+
+
