@@ -8,7 +8,7 @@
  */
 define('PHANTOM_DEFAULT_HEIGHT', 720);
 define('PHANTOM_DEFAULT_WIDTH', 1280);
-
+define('PHANTOM_BASE_PATH','public://phantom/');
 
 /**
  * Implements hook_menu().
@@ -44,6 +44,15 @@ function phantom_menu() {
     'access arguments' => array('access phantom'),
     'type' => MENU_CALLBACK,
   );
+  $items['phantom-gallery'] = array(
+    'title' => 'Phantom Gallery',
+    'description' => 'Phantom Gallery',
+    'page callback' => 'phantom_gallery',
+    'access arguments' => array('access phantom'),
+    'type' => MENU_CALLBACK,
+  );
+
+
   return $items;	
 }
 
@@ -329,7 +338,7 @@ function phantom_phantom_web() {
  *   If invoked from a valid site path (i.e. phantom/%/%/%/%), a call to drupal_goto to 
  *   serve the file which renders the page passed in via $path
  */
-function phantom_phantom($path = '', $mode = 'pdf', $height = PHANTOM_DEFAULT_HEIGHT, $width = PHANTOM_DEFAULT_WIDTH, $debug = FALSE) {
+function phantom_phantom($path = '', $mode = 'pdf', $height = PHANTOM_DEFAULT_HEIGHT, $width = PHANTOM_DEFAULT_WIDTH, $debug = FALSE, $drush = FALSE) {
 
 	if (isset($_GET['debug'])) {
 		$debug = TRUE;
@@ -339,7 +348,7 @@ function phantom_phantom($path = '', $mode = 'pdf', $height = PHANTOM_DEFAULT_HE
 	$width = ($width) ? $width : PHANTOM_DEFAULT_WIDTH;
 
 	// Determine if the function is called from within drush or not.
-	$drush = phantom_drush();
+	$drush = (!$drush) ? phantom_drush() : $drush;
 
 	// Validate the $path parameter.
 	$path = (strlen($path) > 0) ? $path : current_path();
@@ -363,19 +372,17 @@ function phantom_phantom($path = '', $mode = 'pdf', $height = PHANTOM_DEFAULT_HE
 	$capture_path = implode('/', $path);
 
 	// Generate output location information
-	$output_file_base = 'public://';
-	$phantom_file_dir = 'phantom/' . $mode;
-	$output_file_dir = $output_file_base . $phantom_file_dir;
+	$phantom_file_dir = PHANTOM_BASE_PATH . $mode;
 
 	// Each path will have a specific output filename.
 	$output_filename =  str_replace('/','_', $capture_path);
 	$output_filename .= '_' . $height . 'x' . $width . "_" . time() . '.' . $mode;
-  $output_file_path = $output_file_dir . '/' . $output_filename;
+  $output_file_path = $phantom_file_dir . '/' . $output_filename;
 
 	// Clear out previous existing versions of the output file if they exist.  
 	// This migh be converted into a configuration option
 	file_unmanaged_delete($output_file_path);
-  $dest = drupal_realpath('public://').'/'.$phantom_file_dir.'/'.$output_filename;
+  $dest = drupal_realpath($output_file_path);
 	
 	
 	
@@ -460,11 +467,70 @@ function phantom_speed($path = '', $debug = FALSE) {
 	}	
 }
 
+function phantom_gallery() {
+	$params = array('types','count');
+
+	foreach ($params AS $index => $param) {
+		$$param = (strlen(arg($index+1))) ? arg($index+1) : NULL;
+	}
+	if (strlen(trim($types))) {
+		$types = explode(',',$types);
+	} else {
+		$types = NULL;
+	}
+	
+	$query = "SELECT nid, title FROM node";
+	if (count($types) > 0) {
+		$query .= " WHERE type IN ('" . implode("','", $types) . "')";
+	}
+	
+	$query .= " ORDER BY nid ASC ";
+	
+	if ($count > 0) {
+		$query .= " LIMIT " . $count;
+	}
+	
+	
+	$images = array();
+	$nids = db_query($query)->fetchAllKeyed(0,1);
+	foreach ($nids AS $nid => $title) {
+		$path = 'node/' . $nid;
+		$mode = 'jpg';
+		$height = PHANTOM_DEFAULT_HEIGHT;
+		$width = PHANTOM_DEFAULT_WIDTH;
+		$thumb_width = $width/4;
+		$thumb_height = $height/4;
+		$debug = FALSE;
+		$drush = TRUE;
+		$image = phantom_phantom($path, $mode, $height, $width, $debug, $drush);
+		$image = phantom_resize($image, $thumb_height, $thumb_width);
+		$variables = array(
+			'path' => $image,
+			'width' => $thumb_width,
+			'height' => $thumb_height,
+			'alt' => $title,
+			'title' => $title,
+			'attributes' => ''
+		);
+		$image = theme_image($variables);
+		$images[] = l($title . '<BR>' . $image  ,$path,array('html' => TRUE));
+	}
+	return implode('<BR>', $images);
+}
 
 
 
-
-
+function phantom_resize($uri, $height, $width) {
+	$uri = trim(str_replace(file_create_url(PHANTOM_BASE_PATH) . '/', PHANTOM_BASE_PATH, $uri));
+	$image = image_load($uri);
+	if ($image) {
+		image_resize($image, $height, $width); 
+		image_save($image);
+		return file_create_url($uri);	
+	} else {
+		drupal_set_message("Image load fail: " . $uri);
+	}
+}
 
 
 /**
