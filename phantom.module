@@ -379,11 +379,8 @@ function phantom_phantom($path = '', $mode = 'pdf', $height = PHANTOM_DEFAULT_HE
 	$output_filename .= '_' . $height . 'x' . $width . "_" . time() . '.' . $mode;
   $output_file_path = $phantom_file_dir . '/' . $output_filename;
 
-	// Clear out previous existing versions of the output file if they exist.  
-	// This migh be converted into a configuration option
-	file_unmanaged_delete($output_file_path);
-  $dest = drupal_realpath($output_file_path);
-	
+  $dest = drupal_realpath($phantom_file_dir) . '/' . $output_filename;
+
 	
 	
 	// Build and execute the shell command	
