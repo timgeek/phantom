@@ -608,24 +608,27 @@ function phantom_parse_speedtest($results) {
 			if (isset($result->{$req})) {
 				$reqs[$req]++;
 				$urls[$result->{$req}->url][$req] = $result->{$req}->time;
-			}
-			if ($req == 'received') {
-				foreach ($result->{$req}->headers AS $header) {
-					if ($header->name == 'Content-Length') {
-						$sizes[] = $header->value;
-						$sizes['total'] += $header->value;
+				if ($req == 'received') {
+					if (isset($result->{$req}->bodySize)) {
+						$urls[$result->{$req}->url]['size'] = $result->{$req}->bodySize;
+					} else {
+						foreach ($result->{$req}->headers AS $header) {
+							if ($header->name == 'Content-Length') {
+								$urls[$result->{$req}->url]['size'] = $header->value;
+							}
+						}
 					}
+			
 				}
 			}
 		}
 	}
-	return array(
-		'sizes' => $sizes, 
-		'urls' => phantom_time_diff($urls)
-	);
+	return phantom_time_diff($urls);
 }
 
 function phantom_time_diff($array) {
+	$first = 999999999999999;
+	$last = 0;
 	foreach ($array AS $url => $ts) {
 		foreach (array('requested','received') AS $r) {
 			$tts = explode('.', $ts[$r]);
@@ -633,12 +636,17 @@ function phantom_time_diff($array) {
 			$micro = str_ireplace('Z','',$tts[1]);
 			$seconds = $seconds + ($tts[1]/1000);
 			$array[$url][$r] = $seconds;
+			$first = ($seconds < $first && $seconds > 0) ? $seconds : $first;
+			$last = ($seconds > $last && $seconds > 0) ? $seconds : $last;
 		}
-		$array[$url]['elapsed'] = $elapsed[] = round($array[$url]['received'] - $array[$url]['requested'],4);
+		$array[$url]['elapsed'] = $elapsed[] = ($array[$url]['received'] != 0) ? round($array[$url]['received'] - $array[$url]['requested'],4) : NULL;
 	}
 	foreach (array('range', 'mean', 'median') AS $f) {
 		$array[$f] = phantom_mmmr($elapsed, $f);
 	}
+	$array['first'] = $first;
+	$array['last'] = $last;
+	$array['total'] = abs(round($first - $last,4));
 	$array['count'] = count($elapsed);
 	return $array;
 }
