@@ -554,4 +554,144 @@ function phantom_exec($command, $debug = FALSE, $drush = FALSE) {
 	return $output;
 }
 
+function phantom_perf_test($url) {
+	$test_scripts = array('netlog');
+	$debug = FALSE;
+	$drush = TRUE;
+	foreach ($test_scripts AS $script) {
+		$command = array(
+			phantom_get_binary(), 
+			phantom_get_script($script), 
+			$url, 
+		);
+		$command = implode(' ', $command);
+		$output = phantom_exec($command, $debug, $drush);
+
+		$output = phantom_json_fix($output);
+		return phantom_parse_speedtest($output);
+	}
+}
+
+function phantom_json_fix($array) {
+	$line1 = TRUE;
+	foreach ($array AS $line) {
+		if (stripos($line, 'requested') === 0 && $line1) {
+			$line1 = FALSE;
+			$string .= '[{ "requested": {';
+		} 
+		elseif (stripos($line, 'received') === 0 && $line1) {
+			$line1 = FALSE;
+			$string .= '[{ "received": {';
+		} 
+		elseif (stripos($line, 'requested') === 0) {
+			$string .= '}, { "requested": {';
+		}
+		elseif (stripos($line, 'received') === 0) {
+			$string .= '}, { "received": {';
+		}
+		else {
+			$string .= $line;
+		}
+	}
+	$string .= "}]";
+	return json_decode($string);
+}
+
+
+function phantom_parse_speedtest($results) {
+	// count reqs and recs
+	$reqs = array('requested' => 0 ,'received' => 0);
+	$urls = array();
+	$sizes = array('total' => 0);
+	foreach ($results AS $result) {
+		foreach ($reqs AS $req => $ct) {
+			if (isset($result->{$req})) {
+				$reqs[$req]++;
+				$urls[$result->{$req}->url][$req] = $result->{$req}->time;
+			}
+			if ($req == 'received') {
+				foreach ($result->{$req}->headers AS $header) {
+					if ($header->name == 'Content-Length') {
+						$sizes[] = $header->value;
+						$sizes['total'] += $header->value;
+					}
+				}
+			}
+		}
+	}
+	return array(
+		'sizes' => $sizes, 
+		'urls' => phantom_time_diff($urls)
+	);
+}
+
+function phantom_time_diff($array) {
+	foreach ($array AS $url => $ts) {
+		foreach (array('requested','received') AS $r) {
+			$tts = explode('.', $ts[$r]);
+			$seconds = strtotime($tts[0]);
+			$micro = str_ireplace('Z','',$tts[1]);
+			$seconds = $seconds + ($tts[1]/1000);
+			$array[$url][$r] = $seconds;
+		}
+		$array[$url]['elapsed'] = $elapsed[] = round($array[$url]['received'] - $array[$url]['requested'],4);
+	}
+	foreach (array('range', 'mean', 'median') AS $f) {
+		$array[$f] = phantom_mmmr($elapsed, $f);
+	}
+	$array['count'] = count($elapsed);
+	return $array;
+}
+
+
+// http://phpsnips.com/45/Mean,-Median,-Mode,-Range-Of-An-Array
+function phantom_mmmr($array, $output = 'mean') { 
+	if(!is_array($array)) { 
+		return FALSE; 
+	}	else	{ 
+		switch($output){ 
+			case 'mean': 
+				$count = count($array); 
+				$sum = array_sum($array); 
+				$total = $sum / $count; 
+				break; 
+			case 'median': 
+				rsort($array); 
+				$middle = round(count($array) / 2); 
+				$total = $array[$middle-1]; 
+				break; 
+			case 'mode': 
+				$v = array_count_values($array); 
+				arsort($v); 
+				foreach($v as $k => $v){$total = $k; break;} 
+				break; 
+			case 'range': 
+				sort($array); 
+				$sml = $array[0]; 
+				rsort($array); 
+				$lrg = $array[0]; 
+				$total = $lrg - $sml; 
+				break; 
+		} 
+		return $total; 
+	} 
+} 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
