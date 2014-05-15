@@ -1,6 +1,5 @@
 <?php
 
-
 /**
  * Defaults
  *  @todo Move this to an admin form and store as a variables.
@@ -8,7 +7,7 @@
  */
 define('PHANTOM_DEFAULT_HEIGHT', 720);
 define('PHANTOM_DEFAULT_WIDTH', 1280);
-define('PHANTOM_BASE_PATH','public://phantom/');
+define('PHANTOM_BASE_PATH', 'public://phantom/');
 
 /**
  * Implements hook_menu().
@@ -53,54 +52,51 @@ function phantom_menu() {
   );
 
 
-  return $items;	
+  return $items;
 }
-
 
 /**
  * Implements hook_block_info().
  */
 function phantom_block_info() {
-	$blocks['phantom'] = array('info' => t('Phantom'));
-	return $blocks;
+  $blocks['phantom'] = array('info' => t('Phantom'));
+  return $blocks;
 }
 
 /**
  * Implements hook_block_view().
  */
 function phantom_block_view($delta = '') {
-	switch ($delta) {
-		case 'phantom':
-			$links = array();
-			foreach (phantom_modes() AS $mode) {
-				$links[] = l('Snapshot ' . $mode, 'phantom/' . $mode . '/' . current_path());
-			}
-			$links[] = l('Speed test','phantom-speed/' . current_path());
-			$list = array(
-				'items' => $links,
-				'title' => 'Phantom'
-			);
-			$block['content'] = theme('item_list',$list);
-			break;
-	}
-	return $block;
+  switch ($delta) {
+    case 'phantom':
+      $links = array();
+      foreach (phantom_modes() AS $mode) {
+        $links[] = l('Snapshot ' . $mode, 'phantom/' . $mode . '/' . current_path());
+      }
+      $links[] = l('Speed test', 'phantom-speed/' . current_path());
+      $list = array(
+        'items' => $links,
+        'title' => 'Phantom',
+      );
+      $block['content'] = theme('item_list', $list);
+      break;
+  }
+  return $block;
 }
-
 
 /**
  * Implements hook_init().
  */
 function phantom_init() {
-	// Check for the presence of the PhantomJS binary and present a warning message
-	// if it can't be located.
-	if (!phantom_get_binary()) {
-		$message = "The Phantom module cannot locate the PhantomJS binary in ";
-		$message .= drupal_get_path('module', 'phantom') . "/bin.  Please download a ";
-		$message .= "suitable binary from " . l('here.','http://phantomjs.org/download.html');
-		drupal_set_message($message,'warning');
-	}
+  // Check for the presence of the PhantomJS binary and present a warning message
+  // if it can't be located.
+  if (!phantom_get_binary()) {
+    $message = "The Phantom module cannot locate the PhantomJS binary in ";
+    $message .= drupal_get_path('module', 'phantom') . "/bin.  Please download a ";
+    $message .= "suitable binary from " . l('here.', 'http://phantomjs.org/download.html');
+    drupal_set_message($message, 'warning');
+  }
 }
-
 
 /**
  *  Search for the PhantomJS binary and return an absolute path to it.
@@ -108,23 +104,21 @@ function phantom_init() {
  *
  */
 function phantom_get_binary() {
-	$results = file_scan_directory(drupal_get_path('module', 'phantom'), '/phantomjs/');
-	foreach ($results AS $file) {
-		if ($file->filename == 'phantomjs') {
-			return realpath($file->uri);
-		}
-	}
-	return FALSE;
+  $results = file_scan_directory(drupal_get_path('module', 'phantom'), '/phantomjs/');
+  foreach ($results AS $file) {
+    if ($file->filename == 'phantomjs') {
+      return realpath($file->uri);
+    }
+  }
+  return FALSE;
 }
-
 
 /**
  *  Return an absolute path to the javascript file we pass to PhantomJS.
  */
 function phantom_get_script($script = 'capture') {
-	return realpath(drupal_get_path('module', 'phantom') . '/js/' . $script . '.js');
+  return realpath(drupal_get_path('module', 'phantom') . '/js/' . $script . '.js');
 }
-
 
 /**
  *  Generate a page with an iFrame which contains a page on the site
@@ -140,49 +134,44 @@ function phantom_get_script($script = 'capture') {
  *   HTML page containing an iFrame as specified by the input parameters
  */
 function phantom_iframe($height, $width, $url) {
-	$args = func_get_args();
-	$url = array($url);
-	for ($i = 3; $i < count($args); $i++) {
-		$url[] = $args[$i];
-	}
-	$url = implode('/', $url);
-	$item = menu_get_item($url);
-	$url = url($url, array('absolute' => TRUE));
-	$frame = '<html><head><title>' . $item['title'] . '</title><style type="text/css">
+  $args = func_get_args();
+  $url = array($url);
+  for ($i = 3; $i < count($args); $i++) {
+    $url[] = $args[$i];
+  }
+  $url = implode('/', $url);
+  $item = menu_get_item($url);
+  $url = url($url, array('absolute' => TRUE));
+  $frame = '<html><head><title>' . $item['title'] . '</title><style type="text/css">
 #frame { position: absolute; left: 0px; top: 0px; }</style></head>
-<body><iframe scrolling="no" frameborder="0" id="frame" src="' . $url . '" width="' .  $width . '" height="'. $height . '"></iframe></body></html>';
-	return $frame;
+<body><iframe scrolling="no" frameborder="0" id="frame" src="' . $url . '" width="' . $width . '" height="' . $height . '"></iframe></body></html>';
+  return $frame;
 }
-
-
 
 /**
  * Delivery callback for phantom-frame; strips all but the html returned from the function.
  */
 function phantom_deliver_html_page($page_callback_result) {
-	drupal_add_http_header('Content-Type', 'text/html; charset=utf-8');
+  drupal_add_http_header('Content-Type', 'text/html; charset=utf-8');
   global $language;
   drupal_add_http_header('Content-Language', $language->language);
-	print $page_callback_result;
+  print $page_callback_result;
   drupal_page_footer();
 }
-
-
 
 /**
  *  Generate the absolute URL to the Phantom iFrame
  */
 function phantom_get_frame($height, $width, $url) {
-	$path = array('phantom-frame', $height, $width, $url);
-	return url(implode('/',$path), array('absolute' => TRUE));
+  $path = array('phantom-frame', $height, $width, $url);
+  return url(implode('/', $path), array('absolute' => TRUE));
 }
-
 
 /**
  * Implements hook_perm().
  */
 function phantom_permission() {
- return array(
+  return array(
     'administer phantom' => array(
       'title' => t('Administer Phantom'),
       'description' => t('Set default parameters for Phantom'),
@@ -191,33 +180,29 @@ function phantom_permission() {
       'title' => t('Access Phantom'),
       'description' => t('Access Phantom functionality'),
     ),
-  );	
+  );
 }
-
 
 /**
  * Returns valid PhantomJS rendering output formats.
  */
 function phantom_modes() {
-	return array(
-		'pdf',
-		'jpg',
-		'png'
-	);
+  return array(
+    'pdf',
+    'jpg',
+    'png',
+  );
 }
-
 
 /**
  * Page callback wrapper for phantom_test which correctly handles arguments.
  */
 function phantom_test_web() {
-	$args = func_get_args();
-	$test = array_pop($args);
-	$type = array_pop($args);
-	return phantom_test(current_path(), $test, $type);
+  $args = func_get_args();
+  $test = array_pop($args);
+  $type = array_pop($args);
+  return phantom_test(current_path(), $test, $type);
 }
-
-
 
 /**
  *  Prepare to invoke the PhantomJS binary in conjunction with a javascript and a site URL
@@ -233,67 +218,67 @@ function phantom_test_web() {
  *
  * @return
  *   The .text() and .value() of everything on $path that matches the specified selector
- *   
- * @todo 
+ *
+ * @todo
  *   Theme the return values more appropriately for web-based requests.
- *   
- *   
+ *
+ *
  */
 function phantom_test($path = '', $test = '', $type = '', $debug = FALSE) {
-	// Determine if the function is called from within drush or not.
-	$drush = phantom_drush();
+  // Determine if the function is called from within drush or not.
+  $drush = phantom_drush();
 
-	$path = (strlen($path) > 0) ? $path : current_path();
-	$path = explode('/',$path);
+  $path = (strlen($path) > 0) ? $path : current_path();
+  $path = explode('/', $path);
 
-	if (!$drush) {
+  if (!$drush) {
 
-		// Remove phantom
-		if ($path[0] == 'phantom-test') {
-			unset($path[0]);
-		}
-		// Remove test parameters
-		array_pop($path);
-		array_pop($path);
+    // Remove phantom
+    if ($path[0] == 'phantom-test') {
+      unset($path[0]);
+    }
+    // Remove test parameters
+    array_pop($path);
+    array_pop($path);
   }
 
 
-	$types = array(
-		'id' => '\\#',
-		'class' => '.',
-		'element' => '',
-	);
-	if ($type) {
-		$test = $types[$type] . $test;
-	}
+  $types = array(
+    'id' => '\\#',
+    'class' => '.',
+    'element' => '',
+  );
+  if ($type) {
+    $test = $types[$type] . $test;
+  }
 
-	// Now that 'phantom-test' and $mode have been removed from $path, re-assemble it as a string
-	$capture_path = url(implode('/', $path), array('absolute' => TRUE));
+  // Now that 'phantom-test' and $mode have been removed from $path, re-assemble it as a string
+  $capture_path = url(implode('/', $path), array('absolute' => TRUE));
 
-	$jqueryurl = url(drupal_get_path('module', 'phantom') . '/js/jquery.min.js', array('absolute' => TRUE));
+  $jqueryurl = url(drupal_get_path('module', 'phantom') . '/js/jquery.min.js', array('absolute' => TRUE));
 
-	// Build and execute the shell command	
-	$command = array(phantom_get_binary(), phantom_get_script('test'), $capture_path, $test, $jqueryurl);
-	$command = implode(' ', $command);
+  // Build and execute the shell command
+  $command = array(phantom_get_binary(), phantom_get_script('test'), $capture_path, $test, $jqueryurl);
+  $command = implode(' ', $command);
 
 
-	$output = phantom_exec($command, $debug, $drush);
+  $output = phantom_exec($command, $debug, $drush);
 
 
   if ($drush) {
-		return $output;
-	} else {	
-		$content = "<h3>URL:</h3>" . $output[0];
-		$content .= "<h3>Element(s):</h3>" . $output[1];
-		$content .= "<h3>Value(s):</h3>";
-		for ($i = 2; $i < count($output); $i++) {
-			if (strlen(trim($output[$i]))) {
-				$content .= trim($output[$i]) . '<BR>';
-			}
-		}
-		return $content;	
-	}	
-
+    return $output;
+  }
+  else {
+    $content = "<h3>URL:</h3>" . $output[0];
+    $content .= "<h3>Element(s):</h3>" . $output[1];
+    $content .= "<h3>Value(s):</h3>";
+    for ($i = 2; $i < count($output); $i++) {
+      if (strlen(trim($output[$i]))) {
+        $content .= trim($output[$i]) . '<BR>';
+      }
+    }
+    return $content;
+  }
 }
 
 /**
@@ -302,22 +287,19 @@ function phantom_test($path = '', $test = '', $type = '', $debug = FALSE) {
  *
  */
 function phantom_drush() {
-	$trace = debug_backtrace();
-	$drush = array_pop($trace);
-	return strpos($drush['file'],'drush');
+  $trace = debug_backtrace();
+  $drush = array_pop($trace);
+  return strpos($drush['file'], 'drush');
 }
-
-
 
 /**
  * Page callback wrapper for phantom_phantom which correctly handles arguments.
  */
 function phantom_phantom_web() {
-	$height = (isset($_GET['height'])) ? $_GET['height'] : PHANTOM_DEFAULT_HEIGHT;
-	$width = (isset($_GET['width'])) ? $_GET['width'] : PHANTOM_DEFAULT_WIDTH;
-	return phantom_phantom(current_path(), NULL, $height, $width);
+  $height = (isset($_GET['height'])) ? $_GET['height'] : PHANTOM_DEFAULT_HEIGHT;
+  $width = (isset($_GET['width'])) ? $_GET['width'] : PHANTOM_DEFAULT_WIDTH;
+  return phantom_phantom(current_path(), NULL, $height, $width);
 }
-
 
 /**
  *  Prepare to invoke the PhantomJS binary in conjunction with a javascript and a site URL
@@ -325,7 +307,7 @@ function phantom_phantom_web() {
  * @param $path
  *   String valid path to a page on the site
  * @param $mode
- *   String output format for in which $path will be rendered.  It must be a valid mode 
+ *   String output format for in which $path will be rendered.  It must be a valid mode
  *   from phantom_modes()
  * @param $height
  *   Integer to specify the rendered height in pixels
@@ -335,85 +317,84 @@ function phantom_phantom_web() {
  *   Boolean indicating whether to log shell command and output to the watchdog log.
  *
  * @return
- *   If invoked from a valid site path (i.e. phantom/%/%/%/%), a call to drupal_goto to 
+ *   If invoked from a valid site path (i.e. phantom/%/%/%/%), a call to drupal_goto to
  *   serve the file which renders the page passed in via $path
  */
 function phantom_phantom($path = '', $mode = 'pdf', $height = PHANTOM_DEFAULT_HEIGHT, $width = PHANTOM_DEFAULT_WIDTH, $debug = FALSE, $drush = FALSE) {
 
-	if (isset($_GET['debug'])) {
-		$debug = TRUE;
-	}
+  if (isset($_GET['debug'])) {
+    $debug = TRUE;
+  }
 
-	$height = ($height) ? $height : PHANTOM_DEFAULT_HEIGHT;
-	$width = ($width) ? $width : PHANTOM_DEFAULT_WIDTH;
+  $height = ($height) ? $height : PHANTOM_DEFAULT_HEIGHT;
+  $width = ($width) ? $width : PHANTOM_DEFAULT_WIDTH;
 
-	// Determine if the function is called from within drush or not.
-	$drush = (!$drush) ? phantom_drush() : $drush;
+  // Determine if the function is called from within drush or not.
+  $drush = (!$drush) ? phantom_drush() : $drush;
 
-	// Validate the $path parameter.
-	$path = (strlen($path) > 0) ? $path : current_path();
-	$path = explode('/',$path);
+  // Validate the $path parameter.
+  $path = (strlen($path) > 0) ? $path : current_path();
+  $path = explode('/', $path);
 
-	// Remove phantom
-	if ($path[0] == 'phantom') {
-		unset($path[0]);
-	}
+  // Remove phantom
+  if ($path[0] == 'phantom') {
+    unset($path[0]);
+  }
 
-	if (array_search($path[1], phantom_modes()) !== FALSE) {
-		// If a valid mode was specified in $path, use it and remove it from $path.
-		$mode = $path[1];
-		unset($path[1]);
-	}	elseif (array_search($mode, phantom_modes()) === FALSE) {
-		// otherwise, use $mode, or if unspecified, use 'pdf'.
-		$mode = 'pdf';
-	}
+  if (array_search($path[1], phantom_modes()) !== FALSE) {
+    // If a valid mode was specified in $path, use it and remove it from $path.
+    $mode = $path[1];
+    unset($path[1]);
+  }
+  elseif (array_search($mode, phantom_modes()) === FALSE) {
+    // otherwise, use $mode, or if unspecified, use 'pdf'.
+    $mode = 'pdf';
+  }
 
-	// Now that 'phantom' and $mode have been removed from $path, re-assemble it as a string
-	$capture_path = implode('/', $path);
+  // Now that 'phantom' and $mode have been removed from $path, re-assemble it as a string
+  $capture_path = implode('/', $path);
 
-	// Generate output location information
-	$phantom_file_dir = PHANTOM_BASE_PATH . $mode;
+  // Generate output location information
+  $phantom_file_dir = PHANTOM_BASE_PATH . $mode;
 
-	// Each path will have a specific output filename.
-	$output_filename =  str_replace('/','_', $capture_path);
-	$output_filename .= '_' . $height . 'x' . $width . "_" . time() . '.' . $mode;
+  // Each path will have a specific output filename.
+  $output_filename = str_replace('/', '_', $capture_path);
+  $output_filename .= '_' . $height . 'x' . $width . "_" . time() . '.' . $mode;
   $output_file_path = $phantom_file_dir . '/' . $output_filename;
 
   $dest = drupal_realpath($phantom_file_dir) . '/' . $output_filename;
 
-	
-	
-	// Build and execute the shell command	
-	$command = array(
-		phantom_get_binary(), 
-		phantom_get_script(), 
-		phantom_get_frame($height, $width, $capture_path), 
-		$dest, 
-		$height, 
-		$width
-	);
-	$command = implode(' ', $command);
-	phantom_exec($command, $debug, $drush);
 
-	// Determine if the function is called from within drush or not.
-	if ($drush) {
-		// Called from drush, print the URL to the file
-		return file_create_url($output_file_path) . chr(10);
-	} else {
-		// Called from the web, serve the file
-		drupal_goto(file_create_url($output_file_path));
-	}
 
+  // Build and execute the shell command
+  $command = array(
+    phantom_get_binary(),
+    phantom_get_script(),
+    phantom_get_frame($height, $width, $capture_path),
+    $dest,
+    $height,
+    $width,
+  );
+  $command = implode(' ', $command);
+  phantom_exec($command, $debug, $drush);
+
+  // Determine if the function is called from within drush or not.
+  if ($drush) {
+    // Called from drush, print the URL to the file
+    return file_create_url($output_file_path) . chr(10);
+  }
+  else {
+    // Called from the web, serve the file
+    drupal_goto(file_create_url($output_file_path));
+  }
 }
-
 
 /**
  * Page callback wrapper for phantom_speed which correctly handles arguments.
  */
 function phantom_speed_web() {
-	return phantom_speed(current_path());
+  return phantom_speed(current_path());
 }
-
 
 /**
  *  Prepare to invoke the PhantomJS binary in conjunction with a javascript and a site URL
@@ -428,278 +409,267 @@ function phantom_speed_web() {
  */
 function phantom_speed($path = '', $debug = FALSE) {
 
-	if (isset($_GET['debug'])) {
-		$debug = TRUE;
-	}
+  if (isset($_GET['debug'])) {
+    $debug = TRUE;
+  }
 
-	// Determine if the function is called from within drush or not.
-	$drush = phantom_drush();
+  // Determine if the function is called from within drush or not.
+  $drush = phantom_drush();
 
-	// Validate the $path parameter.
-	$path = (strlen($path) > 0) ? $path : current_path();
-	$path = explode('/',$path);
+  // Validate the $path parameter.
+  $path = (strlen($path) > 0) ? $path : current_path();
+  $path = explode('/', $path);
 
-	// Remove phantom-speed
-	if ($path[0] == 'phantom-speed') {
-		unset($path[0]);
-	}
+  // Remove phantom-speed
+  if ($path[0] == 'phantom-speed') {
+    unset($path[0]);
+  }
 
-	// Now that 'phantom-test' and $mode have been removed from $path, re-assemble it as a string
-	$capture_path = url(implode('/', $path), array('absolute' => TRUE));
+  // Now that 'phantom-test' and $mode have been removed from $path, re-assemble it as a string
+  $capture_path = url(implode('/', $path), array('absolute' => TRUE));
 
-	// Build and execute the shell command	
-	$command = array(
-		phantom_get_binary(), 
-		phantom_get_script('loadspeed'), 
-		$capture_path, 
-	);
-	$command = implode(' ', $command);
-	
-	$output = phantom_exec($command, $debug, $drush);
+  // Build and execute the shell command
+  $command = array(
+    phantom_get_binary(),
+    phantom_get_script('loadspeed'),
+    $capture_path,
+  );
+  $command = implode(' ', $command);
+
+  $output = phantom_exec($command, $debug, $drush);
 
   if ($drush) {
-		return $output[1];
-	} else {	
-		return $output[1];	
-	}	
+    return $output[1];
+  }
+  else {
+    return $output[1];
+  }
 }
 
 function phantom_gallery() {
-	$params = array('types','count');
+  $params = array('types', 'count');
 
-	foreach ($params AS $index => $param) {
-		$$param = (strlen(arg($index+1))) ? arg($index+1) : NULL;
-	}
-	if (strlen(trim($types))) {
-		$types = explode(',',$types);
-	} else {
-		$types = NULL;
-	}
-	
-	$query = "SELECT nid, title FROM node";
-	if (count($types) > 0) {
-		$query .= " WHERE type IN ('" . implode("','", $types) . "')";
-	}
-	
-	$query .= " ORDER BY nid ASC ";
-	
-	if ($count > 0) {
-		$query .= " LIMIT " . $count;
-	}
-	
-	
-	$images = array();
-	$nids = db_query($query)->fetchAllKeyed(0,1);
-	foreach ($nids AS $nid => $title) {
-		$path = 'node/' . $nid;
-		$mode = 'jpg';
-		$height = PHANTOM_DEFAULT_HEIGHT;
-		$width = PHANTOM_DEFAULT_WIDTH;
-		$thumb_width = $width/4;
-		$thumb_height = $height/4;
-		$debug = FALSE;
-		$drush = TRUE;
-		$image = phantom_phantom($path, $mode, $height, $width, $debug, $drush);
-		$image = phantom_resize($image, $thumb_height, $thumb_width);
-		$variables = array(
-			'path' => $image,
-			'width' => $thumb_width,
-			'height' => $thumb_height,
-			'alt' => $title,
-			'title' => $title,
-			'attributes' => ''
-		);
-		$image = theme_image($variables);
-		$images[] = l($title . '<BR>' . $image  ,$path,array('html' => TRUE));
-	}
-	return implode('<BR>', $images);
+  foreach ($params AS $index => $param) {
+    $$param = (strlen(arg($index + 1))) ? arg($index + 1) : NULL;
+  }
+  if (strlen(trim($types))) {
+    $types = explode(',', $types);
+  }
+  else {
+    $types = NULL;
+  }
+
+  $query = "SELECT nid, title FROM node";
+  if (count($types) > 0) {
+    $query .= " WHERE type IN ('" . implode("','", $types) . "')";
+  }
+
+  $query .= " ORDER BY nid ASC ";
+
+  if ($count > 0) {
+    $query .= " LIMIT " . $count;
+  }
+
+
+  $images = array();
+  $nids = db_query($query)->fetchAllKeyed(0, 1);
+  foreach ($nids AS $nid => $title) {
+    $path = 'node/' . $nid;
+    $mode = 'jpg';
+    $height = PHANTOM_DEFAULT_HEIGHT;
+    $width = PHANTOM_DEFAULT_WIDTH;
+    $thumb_width = $width / 4;
+    $thumb_height = $height / 4;
+    $debug = FALSE;
+    $drush = TRUE;
+    $image = phantom_phantom($path, $mode, $height, $width, $debug, $drush);
+    $image = phantom_resize($image, $thumb_height, $thumb_width);
+    $variables = array(
+      'path' => $image,
+      'width' => $thumb_width,
+      'height' => $thumb_height,
+      'alt' => $title,
+      'title' => $title,
+      'attributes' => '',
+    );
+    $image = theme_image($variables);
+    $images[] = l($title . '<BR>' . $image, $path, array('html' => TRUE));
+  }
+  return implode('<BR>', $images);
 }
-
-
 
 function phantom_resize($uri, $height, $width) {
-	$uri = trim(str_replace(file_create_url(PHANTOM_BASE_PATH) . '/', PHANTOM_BASE_PATH, $uri));
-	$image = image_load($uri);
-	if ($image) {
-		image_resize($image, $height, $width); 
-		image_save($image);
-		return file_create_url($uri);	
-	} else {
-		drupal_set_message("Image load fail: " . $uri);
-	}
+  $uri = trim(str_replace(file_create_url(PHANTOM_BASE_PATH) . '/', PHANTOM_BASE_PATH, $uri));
+  $image = image_load($uri);
+  if ($image) {
+    image_resize($image, $height, $width);
+    image_save($image);
+    return file_create_url($uri);
+  }
+  else {
+    drupal_set_message("Image load fail: " . $uri);
+  }
 }
-
 
 /**
  *  Invoke the PhantomJS binary, manage output and debugging.
  *
  */
 function phantom_exec($command, $debug = FALSE, $drush = FALSE) {
-	$debug = true;
+  $debug = TRUE;
   if ($debug) {
-		if (!$drush) {
-			watchdog('phantom', 'Command: ' . $command);
-		}
-	}
+    if (!$drush) {
+      watchdog('phantom', 'Command: ' . $command);
+    }
+  }
   exec($command, $output, $status);
 
   if ($debug) {
-		if ($drush) {
-			return $output;
-		} else {
-			watchdog('phantom', 'Output: ' . implode('<BR>', $output));
-			watchdog('phantom', 'Status: ' . $status);
-		}
-	}
-	return $output;
+    if ($drush) {
+      return $output;
+    }
+    else {
+      watchdog('phantom', 'Output: ' . implode('<BR>', $output));
+      watchdog('phantom', 'Status: ' . $status);
+    }
+  }
+  return $output;
 }
 
 function phantom_perf_test($url) {
-	$test_scripts = array('netlog');
-	$debug = FALSE;
-	$drush = TRUE;
-	foreach ($test_scripts AS $script) {
-		$command = array(
-			phantom_get_binary(), 
-			phantom_get_script($script), 
-			$url, 
-		);
-		$command = implode(' ', $command);
-		$output = phantom_exec($command, $debug, $drush);
+  $test_scripts = array('netlog');
+  $debug = FALSE;
+  $drush = TRUE;
+  foreach ($test_scripts AS $script) {
+    $command = array(
+      phantom_get_binary(),
+      phantom_get_script($script),
+      $url,
+    );
+    $command = implode(' ', $command);
+    $output = phantom_exec($command, $debug, $drush);
 
-		$output = phantom_json_fix($output);
-		return phantom_parse_speedtest($output);
-	}
+    $output = phantom_json_fix($output);
+    return phantom_parse_speedtest($output);
+  }
 }
 
 function phantom_json_fix($array) {
-	$line1 = TRUE;
-	foreach ($array AS $line) {
-		if (stripos($line, 'requested') === 0 && $line1) {
-			$line1 = FALSE;
-			$string .= '[{ "requested": {';
-		} 
-		elseif (stripos($line, 'received') === 0 && $line1) {
-			$line1 = FALSE;
-			$string .= '[{ "received": {';
-		} 
-		elseif (stripos($line, 'requested') === 0) {
-			$string .= '}, { "requested": {';
-		}
-		elseif (stripos($line, 'received') === 0) {
-			$string .= '}, { "received": {';
-		}
-		else {
-			$string .= $line;
-		}
-	}
-	$string .= "}]";
-	return json_decode($string);
+  $line1 = TRUE;
+  foreach ($array AS $line) {
+    if (stripos($line, 'requested') === 0 && $line1) {
+      $line1 = FALSE;
+      $string .= '[{ "requested": {';
+    }
+    elseif (stripos($line, 'received') === 0 && $line1) {
+      $line1 = FALSE;
+      $string .= '[{ "received": {';
+    }
+    elseif (stripos($line, 'requested') === 0) {
+      $string .= '}, { "requested": {';
+    }
+    elseif (stripos($line, 'received') === 0) {
+      $string .= '}, { "received": {';
+    }
+    else {
+      $string .= $line;
+    }
+  }
+  $string .= "}]";
+  return json_decode($string);
 }
 
-
 function phantom_parse_speedtest($results) {
-	// count reqs and recs
-	$reqs = array('requested' => 0 ,'received' => 0);
-	$urls = array();
-	$sizes = array('total' => 0);
-	foreach ($results AS $result) {
-		foreach ($reqs AS $req => $ct) {
-			if (isset($result->{$req})) {
-				$reqs[$req]++;
-				$urls[$result->{$req}->url][$req] = $result->{$req}->time;
-				if ($req == 'received') {
-					if (isset($result->{$req}->bodySize)) {
-						$urls[$result->{$req}->url]['size'] = $result->{$req}->bodySize;
-					} else {
-						foreach ($result->{$req}->headers AS $header) {
-							if ($header->name == 'Content-Length') {
-								$urls[$result->{$req}->url]['size'] = $header->value;
-							}
-						}
-					}
-			
-				}
-			}
-		}
-	}
-	return phantom_time_diff($urls);
+  // count reqs and recs
+  $reqs = array('requested' => 0, 'received' => 0);
+  $urls = array();
+  $sizes = array('total' => 0);
+  foreach ($results AS $result) {
+    foreach ($reqs AS $req => $ct) {
+      if (isset($result->{$req})) {
+        $reqs[$req]++;
+        $urls[$result->{$req}->url][$req] = $result->{$req}->time;
+        if ($req == 'received') {
+          if (isset($result->{$req}->bodySize)) {
+            $urls[$result->{$req}->url]['size'] = $result->{$req}->bodySize;
+          }
+          else {
+            foreach ($result->{$req}->headers AS $header) {
+              if ($header->name == 'Content-Length') {
+                $urls[$result->{$req}->url]['size'] = $header->value;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return phantom_time_diff($urls);
 }
 
 function phantom_time_diff($array) {
-	$first = 999999999999999;
-	$last = 0;
-	foreach ($array AS $url => $ts) {
-		foreach (array('requested','received') AS $r) {
-			$tts = explode('.', $ts[$r]);
-			$seconds = strtotime($tts[0]);
-			$micro = str_ireplace('Z','',$tts[1]);
-			$seconds = $seconds + ($tts[1]/1000);
-			$array[$url][$r] = $seconds;
-			$first = ($seconds < $first && $seconds > 0) ? $seconds : $first;
-			$last = ($seconds > $last && $seconds > 0) ? $seconds : $last;
-		}
-		$array[$url]['elapsed'] = $elapsed[] = ($array[$url]['received'] != 0) ? round($array[$url]['received'] - $array[$url]['requested'],4) : NULL;
-	}
-	foreach (array('range', 'mean', 'median') AS $f) {
-		$array[$f] = phantom_mmmr($elapsed, $f);
-	}
-	$array['first'] = $first;
-	$array['last'] = $last;
-	$array['total'] = abs(round($first - $last,4));
-	$array['count'] = count($elapsed);
-	return $array;
+  $first = 999999999999999;
+  $last = 0;
+  foreach ($array AS $url => $ts) {
+    foreach (array('requested', 'received') AS $r) {
+      $tts = explode('.', $ts[$r]);
+      $seconds = strtotime($tts[0]);
+      $micro = str_ireplace('Z', '', $tts[1]);
+      $seconds = $seconds + ($tts[1] / 1000);
+      $array[$url][$r] = $seconds;
+      $first = ($seconds < $first && $seconds > 0) ? $seconds : $first;
+      $last = ($seconds > $last && $seconds > 0) ? $seconds : $last;
+    }
+    $array[$url]['elapsed'] = $elapsed[] = ($array[$url]['received'] != 0) ? round($array[$url]['received'] - $array[$url]['requested'], 4) : NULL;
+  }
+  foreach (array('range', 'mean', 'median') AS $f) {
+    $array[$f] = phantom_mmmr($elapsed, $f);
+  }
+  $array['first'] = $first;
+  $array['last'] = $last;
+  $array['total'] = abs(round($first - $last, 4));
+  $array['count'] = count($elapsed);
+  return $array;
 }
 
 
 // http://phpsnips.com/45/Mean,-Median,-Mode,-Range-Of-An-Array
-function phantom_mmmr($array, $output = 'mean') { 
-	if(!is_array($array)) { 
-		return FALSE; 
-	}	else	{ 
-		switch($output){ 
-			case 'mean': 
-				$count = count($array); 
-				$sum = array_sum($array); 
-				$total = $sum / $count; 
-				break; 
-			case 'median': 
-				rsort($array); 
-				$middle = round(count($array) / 2); 
-				$total = $array[$middle-1]; 
-				break; 
-			case 'mode': 
-				$v = array_count_values($array); 
-				arsort($v); 
-				foreach($v as $k => $v){$total = $k; break;} 
-				break; 
-			case 'range': 
-				sort($array); 
-				$sml = $array[0]; 
-				rsort($array); 
-				$lrg = $array[0]; 
-				$total = $lrg - $sml; 
-				break; 
-		} 
-		return $total; 
-	} 
-} 
+function phantom_mmmr($array, $output = 'mean') {
+  if (!is_array($array)) {
+    return FALSE;
+  }
+  else {
+    switch ($output) {
+      case 'mean':
+        $count = count($array);
+        $sum = array_sum($array);
+        $total = $sum / $count;
+        break;
 
+      case 'median':
+        rsort($array);
+        $middle = round(count($array) / 2);
+        $total = $array[$middle - 1];
+        break;
 
+      case 'mode':
+        $v = array_count_values($array);
+        arsort($v);
+        foreach ($v as $k => $v) {
+          $total = $k;
+          break;
+        }
+        break;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      case 'range':
+        sort($array);
+        $sml = $array[0];
+        rsort($array);
+        $lrg = $array[0];
+        $total = $lrg - $sml;
+        break;
+    }
+    return $total;
+  }
+}
 
